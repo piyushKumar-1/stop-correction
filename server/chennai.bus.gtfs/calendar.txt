@@ -1,0 +1,2 @@
+service_id,monday,tuesday,wednesday,thursday,friday,saturday,sunday,start_date,end_date
+chennai_bus_service_1,1,1,1,1,1,1,1,20260113,20990101

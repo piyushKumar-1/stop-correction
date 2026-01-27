@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stop-collector-server
+  namespace: atlas
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: stop-collector-server
+  template:
+    metadata:
+      labels:
+        app: stop-collector-server
+    spec:
+      containers:
+      - name: stop-collector-server
+        image: ghcr.io/piyushkumar-1/stop-correction:latest
+        ports:
+        - containerPort: 3000
+        env:
+        - name: PORT
+          value: "3000"
+        - name: DB_USER
+          value: "mossaic_user"
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: POSTGRES_PASSWORD
+              name: control-center-secrets
+        - name: DB_HOST
+          value: "atlas-utils-db-cluster.cluster-cx0efc1ddwha.ap-south-1.rds.amazonaws.com"
+        - name: DB_NAME
+          value: "stop_corrections"
+        - name: DB_PORT
+          value: "5432"
+        resources:
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+          requests:
+            cpu: "100m"
+            memory: "256Mi"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 10

@@ -1,0 +1,54 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"networking.istio.io/v1beta1","kind":"VirtualService","metadata":{"annotations":{},"name":"atlas-webview-vs","namespace":"atlas"},"spec":{"gateways":["atlas-internal"],"hosts":["app.moving.tech"],"http":[{"match":[{"uri":{"prefix":"/webview/events"}}],"rewrite":{"uri":"/sdk/events"},"route":[{"destination":{"host":"beckn-sdk-event-pipeline-production","port":{"number":8090},"subset":"e94f83v1"},"weight":100}],"timeout":"40s"},{"match":[{"uri":{"prefix":"/"}}],"rewrite":{"uri":"/"},"route":[{"destination":{"host":"beckn-metro-webview-frontend-production","port":{"number":80},"subset":"d1360c062"},"weight":100}],"timeout":"40s"}]}}
+  creationTimestamp: "2024-07-02T20:17:02Z"
+  generation: 87
+  name: atlas-webview-vs
+  namespace: atlas
+  resourceVersion: "1069299599"
+  uid: c8b6d0ca-0d92-431b-a7a5-5b2280afa5cf
+spec:
+  gateways:
+  - atlas-internal
+  hosts:
+  - app.moving.tech
+  http:
+  - match:
+    - uri:
+        prefix: /stop-correction/api
+    rewrite:
+      uri: /api
+    route:
+    - destination:
+        host: stop-collector-server
+        port:
+          number: 80
+  - match:
+    - uri:
+        prefix: /webview/events
+    rewrite:
+      uri: /sdk/events
+    route:
+    - destination:
+        host: beckn-sdk-event-pipeline-production
+        port:
+          number: 8090
+        subset: e94f83v1
+      weight: 100
+    timeout: 40s
+  - match:
+    - uri:
+        prefix: /
+    rewrite:
+      uri: /
+    route:
+    - destination:
+        host: beckn-metro-webview-frontend-production
+        port:
+          number: 80
+        subset: d1360c062
+      weight: 100
+    timeout: 40s
