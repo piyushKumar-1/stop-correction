@@ -82,6 +82,39 @@ router.get('/nearby', async (req, res) => {
 });
 
 /**
+ * GET /api/stops/:id/correction-photo
+ * Returns the correction photo image for a stop (for override confirmation).
+ */
+router.get('/:id/correction-photo', async (req, res) => {
+    try {
+        const stop = await gtfsParser.getStopById(req.params.id);
+        if (!stop || !stop.correction_info || !stop.correction_info.photo) {
+            return res.status(404).json({ error: 'No correction photo found for this stop' });
+        }
+
+        const photoPath = stop.correction_info.photo;
+        // photoPath is like "/uploads/stop-xxx-timestamp.jpg"
+        const filename = path.basename(photoPath);
+        const filePath = path.join(__dirname, '../data/uploads', filename);
+
+        if (!fs.existsSync(filePath)) {
+            return res.status(404).json({ error: 'Photo file not found' });
+        }
+
+        res.setHeader('Content-Type', 'image/jpeg');
+        res.sendFile(path.resolve(filePath), (err) => {
+            if (err) {
+                console.error('Error sending correction photo:', err);
+                if (!res.headersSent) res.status(500).json({ error: 'Failed to send photo' });
+            }
+        });
+    } catch (error) {
+        console.error('Error fetching correction photo:', error);
+        res.status(500).json({ error: 'Failed to fetch correction photo' });
+    }
+});
+
+/**
  * GET /api/stops/:id
  */
 router.get('/:id', async (req, res) => {

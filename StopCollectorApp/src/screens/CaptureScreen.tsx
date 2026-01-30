@@ -40,6 +40,11 @@ const CaptureScreen = ({ route, navigation }: any) => {
     const [isSearchingTowards, setIsSearchingTowards] = useState(false);
     const [showTowardsModal, setShowTowardsModal] = useState(false);
 
+    // Override confirmation state
+    const [showOverrideModal, setShowOverrideModal] = useState(false);
+    const [pendingOverrideStop, setPendingOverrideStop] = useState<any>(null);
+    const [oldPhotoLoading, setOldPhotoLoading] = useState(false);
+
     const startCapture = async () => {
         setIsCapturingLocation(true);
         try {
@@ -104,8 +109,30 @@ const CaptureScreen = ({ route, navigation }: any) => {
         if (isSelected) {
             setSelectedStops(selectedStops.filter(s => s.stop_id !== stop.stop_id));
         } else {
-            setSelectedStops([...selectedStops, stop]);
+            // Check if stop is already corrected and has a photo
+            if (stop.is_corrected && stop.correction_info?.photo) {
+                setPendingOverrideStop(stop);
+                setOldPhotoLoading(true);
+                setShowOverrideModal(true);
+            } else {
+                setSelectedStops([...selectedStops, stop]);
+            }
         }
+    };
+
+    const confirmOverride = () => {
+        if (pendingOverrideStop) {
+            setSelectedStops([...selectedStops, pendingOverrideStop]);
+        }
+        setShowOverrideModal(false);
+        setPendingOverrideStop(null);
+        setOldPhotoLoading(false);
+    };
+
+    const cancelOverride = () => {
+        setShowOverrideModal(false);
+        setPendingOverrideStop(null);
+        setOldPhotoLoading(false);
     };
 
     const handleSubmit = async () => {
@@ -334,8 +361,13 @@ const CaptureScreen = ({ route, navigation }: any) => {
                             keyExtractor={(item) => item.stop_id}
                             renderItem={({ item }) => {
                                 const isSelected = selectedStops.find(s => s.stop_id === item.stop_id);
+                                const isCorrected = item.is_corrected;
                                 return (
-                                    <View style={[styles.stopItemContainer, isSelected && styles.stopItemActive]}>
+                                    <View style={[
+                                        styles.stopItemContainer, 
+                                        isSelected && styles.stopItemActive,
+                                        isCorrected && !isSelected && styles.stopItemCorrected
+                                    ]}>
                                         <TouchableOpacity
                                             style={styles.stopItemHeader}
                                             onPress={() => toggleStopSelection(item)}
@@ -344,7 +376,14 @@ const CaptureScreen = ({ route, navigation }: any) => {
                                                 <View style={[styles.checkbox, isSelected && styles.checkboxSelected]}>
                                                     {isSelected && <Text style={styles.checkmark}>✓</Text>}
                                                 </View>
-                                                <Text style={styles.stopItemName}>{item.stop_name}</Text>
+                                                <View style={styles.stopNameContainer}>
+                                                    <Text style={styles.stopItemName}>{item.stop_name}</Text>
+                                                    {isCorrected && (
+                                                        <View style={styles.correctedBadge}>
+                                                            <Text style={styles.correctedBadgeText}>CORRECTED</Text>
+                                                        </View>
+                                                    )}
+                                                </View>
                                             </View>
                                             <Text style={styles.stopItemDist}>{Math.round(item.distance)}m</Text>
                                         </TouchableOpacity>
@@ -499,6 +538,64 @@ const CaptureScreen = ({ route, navigation }: any) => {
                             )
                         }
                     />
+                </View>
+            </Modal>
+
+            {/* Override Confirmation Modal */}
+            <Modal visible={showOverrideModal} animationType="fade" transparent={true}>
+                <View style={styles.modalOverlay}>
+                    <View style={styles.overrideModalContent}>
+                        <Text style={styles.overrideModalTitle}>Stop Already Corrected</Text>
+                        
+                        <View style={styles.overrideWarningBox}>
+                            <Text style={styles.overrideWarningText}>
+                                This stop was already corrected with the following image. Do you want to override with new coordinates?
+                            </Text>
+                        </View>
+
+                        <Text style={styles.overrideStopName}>{pendingOverrideStop?.stop_name}</Text>
+                        
+                        {pendingOverrideStop?.correction_info?.photo && (
+                            <View style={styles.oldPhotoContainer}>
+                                <Text style={styles.oldPhotoLabel}>Previous Photo:</Text>
+                                <View style={styles.oldPhotoWrapper}>
+                                    {oldPhotoLoading && (
+                                        <View style={styles.oldPhotoLoader}>
+                                            <ActivityIndicator size="large" color={Theme.colors.primary} />
+                                            <Text style={styles.oldPhotoLoaderText}>Loading image...</Text>
+                                        </View>
+                                    )}
+                                    <Image 
+                                        source={{ uri: stopsApi.getCorrectionPhotoUrl(pendingOverrideStop.stop_id) }}
+                                        style={styles.oldPhotoPreview}
+                                        resizeMode="cover"
+                                        onLoadStart={() => setOldPhotoLoading(true)}
+                                        onLoadEnd={() => setOldPhotoLoading(false)}
+                                        onError={() => setOldPhotoLoading(false)}
+                                    />
+                                </View>
+                                {pendingOverrideStop?.correction_info?.surveyor && (
+                                    <Text style={styles.oldSurveyorText}>
+                                        By: {pendingOverrideStop.correction_info.surveyor}
+                                    </Text>
+                                )}
+                            </View>
+                        )}
+
+                        <TouchableOpacity
+                            style={styles.overrideConfirmButton}
+                            onPress={confirmOverride}
+                        >
+                            <Text style={styles.overrideConfirmButtonText}>Yes, Override</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={styles.overrideCancelButton}
+                            onPress={cancelOverride}
+                        >
+                            <Text style={styles.overrideCancelButtonText}>Cancel</Text>
+                        </TouchableOpacity>
+                    </View>
                 </View>
             </Modal>
         </View>
@@ -728,6 +825,29 @@ const styles = StyleSheet.create({
     },
     stopItemActive: {
         backgroundColor: '#F0F4FF',
+    },
+    stopItemCorrected: {
+        backgroundColor: '#FEF3C7',
+        borderLeftWidth: 3,
+        borderLeftColor: '#F59E0B',
+    },
+    stopNameContainer: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: 6,
+    },
+    correctedBadge: {
+        backgroundColor: '#F59E0B',
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 4,
+    },
+    correctedBadgeText: {
+        color: '#FFFFFF',
+        fontSize: 9,
+        fontWeight: 'bold',
     },
     stopItemHeader: {
         flexDirection: 'row',
@@ -1060,6 +1180,102 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
         color: Theme.colors.text,
+    },
+    // Override Modal Styles
+    overrideModalContent: {
+        backgroundColor: Theme.colors.card,
+        borderRadius: Theme.roundness * 2,
+        padding: Theme.spacing.xl,
+        width: '90%',
+        alignSelf: 'center',
+        maxHeight: '80%',
+    },
+    overrideModalTitle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: Theme.colors.text,
+        marginBottom: Theme.spacing.md,
+        textAlign: 'center',
+    },
+    overrideWarningBox: {
+        backgroundColor: '#FEF3C7',
+        padding: Theme.spacing.md,
+        borderRadius: Theme.roundness,
+        borderWidth: 1,
+        borderColor: '#FDE68A',
+        marginBottom: Theme.spacing.lg,
+    },
+    overrideWarningText: {
+        color: '#92400E',
+        lineHeight: 20,
+        textAlign: 'center',
+    },
+    overrideStopName: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: Theme.colors.text,
+        textAlign: 'center',
+        marginBottom: Theme.spacing.md,
+    },
+    oldPhotoContainer: {
+        alignItems: 'center',
+        marginBottom: Theme.spacing.lg,
+    },
+    oldPhotoLabel: {
+        fontSize: 12,
+        color: Theme.colors.textLight,
+        marginBottom: Theme.spacing.sm,
+    },
+    oldPhotoWrapper: {
+        width: 200,
+        height: 150,
+        position: 'relative',
+        borderRadius: Theme.roundness,
+        overflow: 'hidden',
+        backgroundColor: Theme.colors.border,
+    },
+    oldPhotoLoader: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: Theme.colors.background,
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 1,
+    },
+    oldPhotoLoaderText: {
+        marginTop: Theme.spacing.sm,
+        fontSize: 12,
+        color: Theme.colors.textLight,
+    },
+    oldPhotoPreview: {
+        width: 200,
+        height: 150,
+        borderRadius: Theme.roundness,
+        backgroundColor: Theme.colors.border,
+    },
+    oldSurveyorText: {
+        fontSize: 12,
+        color: Theme.colors.textLight,
+        marginTop: Theme.spacing.sm,
+        fontStyle: 'italic',
+    },
+    overrideConfirmButton: {
+        backgroundColor: '#DC2626',
+        padding: Theme.spacing.md,
+        borderRadius: Theme.roundness,
+        alignItems: 'center',
+    },
+    overrideConfirmButtonText: {
+        color: '#FFFFFF',
+        fontWeight: 'bold',
+        fontSize: 16,
+    },
+    overrideCancelButton: {
+        marginTop: Theme.spacing.md,
+        padding: Theme.spacing.md,
+        alignItems: 'center',
+    },
+    overrideCancelButtonText: {
+        color: Theme.colors.textLight,
     },
 });
 

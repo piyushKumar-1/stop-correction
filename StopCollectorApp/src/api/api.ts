@@ -1,20 +1,30 @@
 import axios from 'axios';
-import { Platform } from 'react-native';
-import { API_BASE_URL as ENV_API_URL } from '@env';
 
-// Fallback for local development if .env is missing or doesn't have the value
-const DEFAULT_URL = Platform.OS === 'android'
-    ? 'http://10.0.2.2:3002/api'
-    : 'http://localhost:3002/api';
-
-const API_BASE_URL = ENV_API_URL || DEFAULT_URL;
+// API base URL – set API_BASE_URL in .env to override (requires react-native-dotenv)
+const API_BASE_URL = 'https://app.moving.tech/stop-correction/api';
 
 const api = axios.create({
     baseURL: API_BASE_URL,
     timeout: 10000,
 });
 
+// Get base URL for constructing photo URLs
+const getBaseUrl = () => {
+    // Remove '/api' from the end to get base URL for static files
+    return API_BASE_URL.replace(/\/api$/, '');
+};
+
 export const stopsApi = {
+    /** URL for the correction photo API (returns image when user tries to override) */
+    getCorrectionPhotoUrl: (stopId: string) => {
+        if (!stopId) return '';
+        return `${API_BASE_URL}/stops/${encodeURIComponent(stopId)}/correction-photo`;
+    },
+    getPhotoUrl: (photoPath: string) => {
+        if (!photoPath) return '';
+        // photoPath is like "/uploads/stop-xxx-timestamp.jpg"
+        return `${getBaseUrl()}${photoPath}`;
+    },
     getStats: async () => {
         const response = await api.get('/stats');
         return response.data;
